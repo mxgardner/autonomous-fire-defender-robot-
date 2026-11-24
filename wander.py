@@ -7,7 +7,7 @@ import drive
 STEP_DISTANCE = 100
 TURN_CHANCE = 20
 MIN_TURN_ANGLE = 30
-MAX_TURN_ANGLE = 90
+MAX_TURN_ANGLE = 50
 
 
 # ==========================================

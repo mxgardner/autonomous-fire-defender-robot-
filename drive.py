@@ -6,6 +6,10 @@ from pybricks.parameters import Port
 from pybricks.tools import wait, StopWatch
 import config as cfg
 
+from pybricks.hubs import EV3Brick
+
+brick = EV3Brick()
+
 gyro = GyroSensor(Port.S4)
 
 
@@ -106,63 +110,67 @@ def move_wheels(left, right, left_angle, right_angle):
     wait(100)
 
 
+
 # ==========================================
 # GYRO-BASED TURNING
 # ==========================================
 
 def turn(left, right, angle):
-    """Turn the robot by a specified number of degrees."""
+    """Turn the robot using gyro feedback."""
 
-    # Positive angle = counterclockwise (left)
-    # Negative angle = clockwise (right)
     target = gyro.angle() - angle
 
-    kp = 1.5
-    tolerance = 2
-    min_speed = 10
+    kp = 2.0
+    tolerance = 5
     max_speed = cfg.SPEED
+    min_speed = min(50, max_speed)
 
     timer = StopWatch()
+    display_timer = StopWatch()
 
     estimated_wheel_angle = (
         cfg.AXLE_TRACK * abs(angle) / cfg.WHEEL_DIAMETER
     )
 
     timeout = (
-        3000 + 6000 * estimated_wheel_angle / max_speed
+        5000 + 9000 * estimated_wheel_angle / max_speed
     )
-
-    settled = 0
 
     try:
         while True:
+
             current = gyro.angle()
             error = target - current
 
-            # Require three readings within tolerance
+            # Update robot screen every 250 ms
+            if display_timer.time() >= 250:
+                brick.screen.clear()
+                brick.screen.print("Turning...")
+                brick.screen.print("Angle:", angle)
+                brick.screen.print("Target:", target)
+                brick.screen.print("Current:", current)
+                brick.screen.print("Error:", error)
+
+                display_timer.reset()
+
+            # Stop when sufficiently close to target
             if abs(error) <= tolerance:
-                settled += 1
+                break
 
-                left.hold()
-                right.hold()
+            # Calculate turning speed
+            speed = kp * abs(error)
 
-                if settled >= 3:
-                    break
+            speed = max(min_speed, min(max_speed, speed))
 
+            # Determine turning direction
+            if error < 0:
+                left.run(-speed)
+                right.run(speed)
             else:
-                settled = 0
+                left.run(speed)
+                right.run(-speed)
 
-                # Proportional turning controller
-                speed = kp * abs(error)
-                speed = max(min_speed, min(max_speed, speed))
-
-                if error < 0:
-                    left.run(-speed)
-                    right.run(speed)
-                else:
-                    left.run(speed)
-                    right.run(-speed)
-
+            # Prevent infinite turning
             if timer.time() > timeout:
                 raise RuntimeError("Gyro turn timed out")
 
