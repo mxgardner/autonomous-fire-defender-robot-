@@ -325,46 +325,36 @@ From the project directory, run `python3 tests/simulate_coverage.py` to
 reproduce the 80-trial search benchmark on a computer. Add `--holdout` to
 also run cases with different starting poses, doorway and target positions.
 
-### Robot Construction and Movement
+### Software checks on a computer
 
-- [ ] Robot construction completed
-- [ ] Motor and sensor ports configured
-- [ ] Straight movement tested
-- [ ] Gyro-based turning tested
-- [ ] Individual wheel movement tested
-- [ ] Motor stopping tested
+- [x] Wall detection, wall following, wandering, room search, and behavior coordination implemented
+- [x] Straight and square diagnostics, corner recovery, and wandering-to-wall-following handoff checked with simulated hardware
+- [x] Target priority, alarm, five-second fan command, and motor shutdown checked with simulated hardware
+- [x] Original coverage benchmark passed all 80 trials
 
-### Wall Following
+The additional layouts completed 14 of 16 trials. The two missed targets
+reached the search deadline.
 
-- [x] Wall detection implemented
-- [x] Wall following implemented
-- [ ] Corner navigation tested
-- [ ] Obstacle avoidance tested
-- [ ] Robot can recover from difficult positions
+### Before the first EV3 course run
 
-### Wandering and Coordination
+- [ ] Assemble the chassis and mount both bumpers, the floor-facing color sensor, and the fan
+- [ ] Verify the [motor and sensor ports](#hardware-configuration) on the brick
+- [ ] Lift the drive wheels and verify individual wheel movement, forward direction, and stopping
+- [ ] Check that the gyro reading is steady with the robot stationary and that the color sensor reads the course marker as red
 
-- [x] Wandering implemented
-- [ ] Wandering-to-wall-following transition tested
-- [ ] Wall-following-to-wandering transition tested
-- [x] Main behavior loop implemented
-- [ ] Fire detection correctly prioritized
+### Physical course checks
 
-### Fire Detection and Extinguishing
+- [ ] Test straight movement and gyro-based turns on the course
+- [ ] Test corners, obstacles, and recovery from a difficult position
+- [ ] Verify that the robot switches between wandering and wall following as wall contact changes
+- [ ] Run from several starts and headings and verify that the robot enters rooms and finds the marker
+- [ ] Dry-run with the red marker and no flame. Verify that the wheels stop, the alarm sounds, and the fan runs for five seconds and stops
+- [ ] Verify whether the fan extinguishes the candle in a supervised run and confirm that all motors stop afterward
 
-- [ ] Red target detection tested
-- [ ] Audible alarm tested
-- [ ] Fan motor tested
-- [ ] Fan successfully extinguishes a candle
-- [ ] All motors stop after an extinguishing attempt
+### Team integration and demonstration
 
-### Final Integration
-
-- [ ] All team branches merged
-- [ ] All modules work together
-- [ ] Complete autonomous navigation tested from different starting positions and headings
-- [ ] Complete fire response tested
-- [ ] Final demonstration completed
+- [ ] Review and merge team branches
+- [ ] Complete the live demonstration
 
 ## Current Limitations
 
