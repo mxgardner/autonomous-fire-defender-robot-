@@ -1,5 +1,5 @@
-from wall_following import follow_wall, detect_wall, setup_robot
-from wandering import wander
+from follow_wall
+import wander
 import drive
 import fire_detection as fire
 
