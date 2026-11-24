@@ -7,12 +7,19 @@ RIGHT_PORT = Port.C
 LEFT_DIRECTION = Direction.CLOCKWISE
 RIGHT_DIRECTION = Direction.CLOCKWISE
 
+# Touch sensors for right-hand wall following.
+FRONT_BUMPER_PORT = Port.S1
+RIGHT_BUMPER_PORT = Port.S2
+
+# Time allowed to search for the target, in milliseconds.
+SEARCH_TIMEOUT_MS = 180000
+
 # Robot measurements in millimeters; speed in motor degrees per second.
 WHEEL_DIAMETER = 81.6
 AXLE_TRACK = 133.8
 SPEED = 500
 
-STRAIGHT_KP = 2.0
+STRAIGHT_KP = 4.0
 STRAIGHT_INTERVAL_MS = 20
 STRAIGHT_TOLERANCE_DEG = 2.0
 STRAIGHT_POSITION_KP = 4.0

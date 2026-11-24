@@ -14,8 +14,8 @@ MAX_TURN_ANGLE = 50
 # WANDERING
 # ==========================================
 
-def wander(left, right):
-    """Perform one step of wandering through open space."""
+def wander(left, right, stop_when=None):
+    """Take one step through open space, stopping early when requested."""
 
     # Randomly decide whether to turn
     if randint(1, 100) <= TURN_CHANCE:
@@ -29,11 +29,11 @@ def wander(left, right):
 
         print("Wandering: Turning", angle, "degrees")
 
-        drive.turn(left, right, angle)
+        drive.turn(left, right, angle, stop_when=stop_when)
 
     else:
 
         # Continue moving forward
         print("Wandering: Moving forward")
 
-        drive.straight(left, right, STEP_DISTANCE)
+        drive.straight(left, right, STEP_DISTANCE, stop_when=stop_when)

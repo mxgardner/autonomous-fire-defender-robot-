@@ -60,7 +60,8 @@ fire-defender/
 ├── main.py
 ├── config.py
 ├── drive.py
-├── wall_following.py
+├── follow_wall.py
+├── room_search.py
 ├── fire_detection.py
 └── README.md
 ```
@@ -70,7 +71,8 @@ fire-defender/
 | `main.py` | Wandering and overall behavior coordination |
 | `config.py` | Shared robot configuration and constants |
 | `drive.py` | Shared movement and turning functions |
-| `wall_following.py` | Wall detection and wall following |
+| `follow_wall.py` | Wall detection and wall following |
+| `room_search.py` | Bumper-based room survey and systematic coverage |
 | `fire_detection.py` | Fire detection, alarm, and extinguishing |
 | `README.md` | Project documentation |
 
@@ -78,7 +80,7 @@ fire-defender/
 
 ### Person 1: Robot Construction and Wall Following
 
-**Assigned file:** `wall_following.py`
+**Assigned file:** `follow_wall.py`
 
 Responsibilities:
 
@@ -135,9 +137,13 @@ Deliverables:
 | Left Wheel Motor | B | Robot movement |
 | Right Wheel Motor | C | Robot movement |
 | Fan Motor | A | Fire extinguishing |
+| Front Touch Sensor | S1 | Front bumper for wall and corner detection |
+| Right Touch Sensor | S2 | Right-side bumper for tracking walls |
 | Color Sensor | S3 | Fire target detection |
 | Gyro Sensor | S4 | Heading and turning |
-| Wall Detection Sensor | TBD | Wall detection |
+
+Mount the bumpers so they press the touch sensors before the robot chassis
+hits a wall. The program keeps the wall on the robot's right.
 
 ## Shared Configuration
 
@@ -146,9 +152,13 @@ robot's movement functions.
 
 | Constant | Description |
 | --- | --- |
+| `LEFT_PORT`, `RIGHT_PORT` | Drive motor ports |
+| `LEFT_DIRECTION`, `RIGHT_DIRECTION` | Positive rotation for each drive motor |
 | `SPEED` | Default motor speed |
+| `STRAIGHT_KP` | Gyro correction gain for straight travel |
 | `WHEEL_DIAMETER` | Wheel diameter in millimeters |
 | `AXLE_TRACK` | Distance between wheels in millimeters |
+| `SEARCH_TIMEOUT_MS` | Search duration, initially 180000 milliseconds |
 
 ## Shared Drive Functions
 
@@ -209,9 +219,10 @@ import fire_detection as fire
 
 | Function | Description |
 | --- | --- |
-| `detect_fire()` | Returns True when the color sensor detects red |
+| `detect_fire()` | Reads whether the floor matches `TARGET_COLOR` |
+| `TargetMonitor.sample()` | Confirms the target color across repeated readings and remembers the detection |
 | `alarm()` | Plays an audible alarm |
-| `extinguish(left, right)` | Stops the wheels and activates the fan |
+| `extinguish(left, right)` | Activates the fan for the configured duration |
 | `stop_fan()` | Stops the fan motor |
 
 ### Fan Configuration
@@ -221,12 +232,14 @@ import fire_detection as fire
 | Fan Motor Port | A |
 | Fan Speed | 1000 degrees per second |
 | Fan Duration | 5000 milliseconds |
-| Target Color | Red |
+| `TARGET_COLOR` | `Color.RED` |
+| `TARGET_CONFIRMATION_MS` | 40 milliseconds |
 
 ### Example Usage
 
 ```python
-if fire.detect_fire():
+target = fire.TargetMonitor()  # Keep one instance and call sample during movement.
+if target.sample():
     drive.stop(left, right)
     fire.alarm()
     fire.extinguish(left, right)
@@ -239,67 +252,21 @@ The main program coordinates all robot behaviors.
 ### Behavior Priority
 
 1. Fire detection and extinguishing
-2. Wall following
-3. Wandering
+2. Room survey and floor sweeps
+3. Wall following and wandering when the survey ends or cannot estimate a room
 
-Fire detection takes priority over all navigation behaviors.
+Run [main.py](main.py) on the EV3. The robot uses two parallel approaches
+to estimate the direction of a wall. It then measures clear travel along
+both room axes with its wheel encoders and gyro. It sweeps the middle and
+quarter lanes first to check for open passages, then scans between those
+lanes. Bumper contact stops a sweep. If the survey ends without a target,
+the robot resumes wall following and wandering. The controller checks for
+the target before and during motion.
 
-### Planned Main Program
-
-```python
-#!/usr/bin/env pybricks-micropython
-
-from pybricks.ev3devices import Motor
-from pybricks.parameters import Port
-from pybricks.tools import wait
-
-import drive
-import fire_detection as fire
-import wall_following as wall
-
-left = Motor(Port.B)
-right = Motor(Port.C)
-
-
-def wander(left, right):
-    # TODO: Implement wandering behavior
-    drive.straight(left, right, 50)
-
-
-def main():
-
-    print("Fire Defender Robot started!")
-
-    try:
-        while True:
-
-            # Priority 1: Fire detection
-            if fire.detect_fire():
-                drive.stop(left, right)
-                fire.alarm()
-                fire.extinguish(left, right)
-                break
-
-            # Priority 2: Wall following
-            elif wall.detect_wall():
-                wall.follow_wall(left, right)
-
-            # Priority 3: Wandering
-            else:
-                wander(left, right)
-
-            wait(50)
-
-    finally:
-        drive.stop(left, right)
-        fire.stop_fan()
-
-    print("Mission complete!")
-
-
-if __name__ == "__main__":
-    main()
-```
+If drive feedback stops progressing, the robot holds the wheels, realigns,
+and tries backing away and turning. If it cannot retreat or turn within
+the recovery sequence, it displays `Path blocked`. If the search reaches
+its deadline, the robot stops and displays `Search timed out`.
 
 ## Integration Guidelines
 
@@ -350,6 +317,14 @@ completed work into the main branch.
 
 ## Testing Checklist
 
+To run a standalone movement check on the EV3, set `TEST` in
+[tests/test.py](tests/test.py) to `directions`, `straight`, `turn`, or
+`square`. The `gyro` and `gyro_turn` modes display sensor readings.
+
+From the project directory, run `python3 tests/simulate_coverage.py` to
+reproduce the 80-trial search benchmark on a computer. Add `--holdout` to
+also run cases with different starting poses, doorway and target positions.
+
 ### Robot Construction and Movement
 
 - [ ] Robot construction completed
@@ -361,18 +336,18 @@ completed work into the main branch.
 
 ### Wall Following
 
-- [ ] Wall detection implemented
-- [ ] Wall following implemented
+- [x] Wall detection implemented
+- [x] Wall following implemented
 - [ ] Corner navigation tested
 - [ ] Obstacle avoidance tested
 - [ ] Robot can recover from difficult positions
 
 ### Wandering and Coordination
 
-- [ ] Wandering implemented
+- [x] Wandering implemented
 - [ ] Wandering-to-wall-following transition tested
 - [ ] Wall-following-to-wandering transition tested
-- [ ] Main behavior loop implemented
+- [x] Main behavior loop implemented
 - [ ] Fire detection correctly prioritized
 
 ### Fire Detection and Extinguishing
@@ -387,20 +362,21 @@ completed work into the main branch.
 
 - [ ] All team branches merged
 - [ ] All modules work together
-- [ ] Complete autonomous navigation tested
+- [ ] Complete autonomous navigation tested from different starting positions and headings
 - [ ] Complete fire response tested
 - [ ] Final demonstration completed
 
 ## Current Limitations
 
-- The color sensor detects red rather than directly detecting
-  a flame.
+- Any floor surface matching the configured target color for the
+  confirmation interval can trigger the fire response.
 - The robot does not independently verify whether a fire has
   been extinguished.
-- Movement functions are blocking, so short movement steps
-  are necessary for frequent fire detection.
-- Wall detection and wandering interfaces are subject to
-  change during development.
+- Stall recovery relies on wheel encoders and gyro feedback. Bumper
+  coverage and clearance affect which obstacles the robot can recover from.
+- The survey estimates perpendicular room axes from contact points. Curved
+  walls, contact with different walls, and wheel slip can skew the estimated
+  sweep lanes.
 - The robot is an educational prototype and is not intended
   for real-world firefighting.
 

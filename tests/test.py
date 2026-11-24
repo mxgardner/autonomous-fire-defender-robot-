@@ -2,10 +2,18 @@
 # Launch this file on the EV3 to run ONE movement test.
 # Use clear floor. For the directions test, lift the wheels.
 
+import sys
+
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, GyroSensor
 from pybricks.parameters import Port
 from pybricks.tools import wait, StopWatch
+
+if __name__ == "__main__":
+    # The shared modules are in the project directory above this script.
+    test_directory = sys.argv[0].rpartition("/")[0] or "."
+    sys.path.append(test_directory + "/..")
+
 import config as cfg
 
 # -----------------------------------
@@ -65,8 +73,8 @@ def test_directions(left, right, wheel_degrees=90):
 
 
 def test_straight(left, right, distance_mm):
-    # Import only when straight driving is selected.
-    from straight_pid import straight
+    # The shared straight controller initializes the gyro on import.
+    from drive import straight
     straight(left, right, distance_mm)
 
 
@@ -75,10 +83,8 @@ def test_turn(left, right, angle_deg):
 
 
 def test_square(left, right, side_mm, turn_deg=90):
-    from straight_pid import straight
-
     for _ in range(4):
-        straight(left, right, side_mm)
+        test_straight(left, right, side_mm)
         turn(left, right, turn_deg)
 
 
