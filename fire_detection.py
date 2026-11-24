@@ -1,40 +1,70 @@
-
 #!/usr/bin/env pybricks-micropython
 
 from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, ColorSensor
 from pybricks.parameters import Port, Color
 from pybricks.tools import wait
+import drive
 
-ev3 = EV3Brick()
+brick = EV3Brick()
 
 color_sensor = ColorSensor(Port.S3)
-
 fan_motor = Motor(Port.A)
 
-print("Fire detection system started!")
+FAN_SPEED = 1000
+FAN_DURATION = 5000
 
-while True:
+
+# ==========================================
+# FIRE DETECTION
+# ==========================================
+
+def detect_fire():
+    """Return True if the color sensor detects red."""
+
     detected_color = color_sensor.color()
 
-    if detected_color == Color.RED:
-        print("FIRE DETECTED!")
+    return detected_color == Color.RED
 
-        ev3.speaker.beep()
 
-        # Turn on fan
-        fan_motor.run(500)
+# ==========================================
+# FIRE ALARM
+# ==========================================
+
+def alarm():
+    """Play an audible alarm when fire is detected."""
+
+    print("FIRE DETECTED!")
+
+    brick.speaker.beep()
+
+
+# ==========================================
+# FIRE EXTINGUISHING
+# ==========================================
+
+def extinguish(left, right):
+    """Activate the fan."""
+
+    try:
+        # Activate fan
+        fan_motor.run(FAN_SPEED)
         print("Fan ON")
 
-        # Run fan for 5 seconds
-        wait(5000)
+        # Run fan for five seconds
+        wait(FAN_DURATION)
 
-        # Stop fan
+    finally:
+        # Ensure fan stops even if an error occurs
         fan_motor.stop()
         print("Fan OFF")
 
-        # Wait until red is no longer detected
-        while color_sensor.color() == Color.RED:
-            wait(100)
 
-    wait(100)
+# ==========================================
+# STOP FAN
+# ==========================================
+
+def stop_fan():
+    """Stop the fan motor."""
+
+    fan_motor.stop()

@@ -1,6 +1,7 @@
 from wall_following import follow_wall, detect_wall, setup_robot
 from wandering import wander
-from fire_detection import detect_fire, alarm, extinguish
+import drive
+import fire_detection as fire
 
 import time
 
@@ -12,10 +13,10 @@ def main():
         while True:
 
             # Priority 1: Detect and extinguish fire
-            if detect_fire(robot):
-                robot.stop()
-                alarm(robot)
-                extinguish(robot)
+            if fire.detect_fire():
+                drive.stop(left,right)
+                fire.alarm()
+                fire.extinguish()
                 break
 
             # Priority 2: Follow walls
