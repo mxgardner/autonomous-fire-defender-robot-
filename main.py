@@ -7,7 +7,7 @@ from pybricks.tools import wait
 import drive
 import wander
 import fire_detection as fire
-import wall_following as wall
+import follow_wall as wall
 
 # Initialize wheel motors
 left = Motor(Port.B)
