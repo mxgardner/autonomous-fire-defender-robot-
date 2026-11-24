@@ -20,12 +20,12 @@ def main():
                 break
 
             # Priority 2: Follow walls
-            elif detect_wall(robot):
-                follow_wall(robot)
+            elif detect_wall():
+                follow_wall()
 
             # Priority 3: Wander through open space
             else:
-                wander(robot)
+                wander.wander(left,right)
 
             time.sleep(0.05)
 
