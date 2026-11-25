@@ -21,13 +21,17 @@ AXLE_TRACK = 133.8
 HALF_LENGTH = 100.0
 HALF_WIDTH = 80.5
 COLOR_SENSOR = (70, 0)
+SONAR_MIN_MM = 30
+SONAR_MAX_MM = 2500
+SONAR_NO_ECHO_MM = 2550
+SONAR_BEAM = tuple(radians(angle) for angle in (-10, 0, 10))
 CONTROLLER_MODULES = (
     "main", "config", "drive", "fire_detection", "follow_wall", "room_search", "wander"
 )
 TERMINAL_MESSAGES = ("Mission complete!", "Search timed out", "Path blocked")
-BUMPER_LAYOUTS = (
-    ("Standard bumpers", ((115, -62), (115, 62)), ((-55, -95), (62, -95))),
-    ("Extended bumpers", ((125, -90), (125, 90)), ((-105, -105), (105, -105))),
+SENSOR_LAYOUTS = (
+    ("Standard mount", ((115, -62), (115, 62)), (100, 0)),
+    ("Extended mount", ((125, -90), (125, 90)), (95, 0)),
 )
 
 
@@ -41,7 +45,7 @@ class Box:
     def contains(self, x, y):
         return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
 
-    def intersects_segment(self, start, end):
+    def first_intersection(self, start, end):
         # Clip the segment to the wall's interval on each axis.
         minimum, maximum = 0.0, 1.0
         for origin, stop, lower, upper in zip(
@@ -50,13 +54,13 @@ class Box:
             delta = stop - origin
             if abs(delta) <= 1e-9:
                 if not lower <= origin <= upper:
-                    return False
+                    return None
                 continue
             first, second = sorted(((lower - origin) / delta, (upper - origin) / delta))
             minimum, maximum = max(minimum, first), min(maximum, second)
             if minimum > maximum:
-                return False
-        return True
+                return None
+        return minimum
 
     def overlaps_chassis(self, x, y, angle):
         # Compare projections on the wall axes and the two rotated chassis axes.
@@ -119,11 +123,12 @@ class SimulationLimit(BaseException):
 
 
 class World:
-    def __init__(self, course, pose, front_bumper, right_bumper):
+    def __init__(self, course, pose, front_bumper, sonar_mount):
         self.walls, self.marker = course.walls, course.marker
         self.x, self.y, direction = pose
         self.angle = radians(direction)
-        self.bumpers = {"S1": front_bumper, "S2": right_bumper}
+        self.front_bumper = front_bumper
+        self.sonar_mount = sonar_mount
         self.motors = {}
         self.time = 0
         self.first_color_read = None
@@ -134,6 +139,7 @@ class World:
         self.marker_crossed = False
         self.furthest_x = self.x
         self.blocked_steps = 0
+        self.sonar_reads = 0
         assert not self.collides(self.x, self.y, self.angle), pose
 
     def collides(self, x, y, angle):
@@ -147,9 +153,27 @@ class World:
     def touches_marker(self):
         return self.marker.contains(*self.point(*COLOR_SENSOR))
 
-    def pressed(self, port):
-        start, end = (self.point(*location) for location in self.bumpers[port])
-        return any(wall.intersects_segment(start, end) for wall in self.walls)
+    def front_pressed(self):
+        start, end = (self.point(*location) for location in self.front_bumper)
+        return any(wall.first_intersection(start, end) is not None for wall in self.walls)
+
+    def sonar_distance(self):
+        # Use the nearest in-range return from three forward-facing rays.
+        # The model approximates the beam without simulating sound reflections.
+        x, y = self.point(*self.sonar_mount)
+        start = x, y
+        closest = SONAR_NO_ECHO_MM
+        for offset in SONAR_BEAM:
+            angle = self.angle + offset
+            end = x + SONAR_MAX_MM * cos(angle), y + SONAR_MAX_MM * sin(angle)
+            nearest = SONAR_NO_ECHO_MM
+            for wall in self.walls:
+                fraction = wall.first_intersection(start, end)
+                if fraction is not None:
+                    nearest = min(nearest, fraction * SONAR_MAX_MM)
+            if SONAR_MIN_MM <= nearest <= SONAR_MAX_MM:
+                closest = min(closest, nearest)
+        return round(closest)
 
     def record_pose(self):
         self.furthest_x = max(self.furthest_x, self.x)
@@ -214,10 +238,18 @@ class World:
 
         class TouchSensor:
             def __init__(self, port):
-                self.port = port
+                assert port == "S1", "The front touch sensor is connected to S1"
 
             def pressed(self):
-                return world.pressed(self.port)
+                return world.front_pressed()
+
+        class UltrasonicSensor:
+            def __init__(self, port):
+                assert port == "S2", "The forward ultrasonic sensor is connected to S2"
+
+            def distance(self, silent=False):
+                world.sonar_reads += 1
+                return world.sonar_distance()
 
         class GyroSensor:
             def __init__(self, port):
@@ -259,7 +291,8 @@ class World:
             "pybricks": {},
             "pybricks.hubs": {"EV3Brick": brick},
             "pybricks.ev3devices": dict(Motor=Motor, TouchSensor=TouchSensor,
-                                        GyroSensor=GyroSensor, ColorSensor=ColorSensor),
+                                        UltrasonicSensor=UltrasonicSensor, GyroSensor=GyroSensor,
+                                        ColorSensor=ColorSensor),
             "pybricks.parameters": dict(
                 Port=SimpleNamespace(**{p: p for p in ("A", "B", "C", "S1", "S2", "S3", "S4")}),
                 Direction=SimpleNamespace(CLOCKWISE=1, COUNTERCLOCKWISE=-1),
@@ -273,13 +306,44 @@ class World:
             sys.modules[name] = module
 
 
-def run_trial(course, seed, front_bumper, right_bumper):
-    pose = course.starts[seed % len(course.starts)]
-    world = World(course, pose, front_bumper, right_bumper)
+def load_controller(world):
     for name in CONTROLLER_MODULES:
         sys.modules.pop(name, None)
     world.install_pybricks()
-    controller = importlib.import_module("main")
+    return importlib.import_module("main")
+
+
+def check_sonar_wall_following():
+    course = ORIGINAL_COURSES[0]
+    _, front_bumper, sonar_mount = SENSOR_LAYOUTS[0]
+    start_x = 2250
+    world = World(course, (start_x, 450, 0), front_bumper, sonar_mount)
+    controller = load_controller(world)
+    wall = sys.modules["follow_wall"]
+    assert not world.front_pressed(), "Forward range check must start clear of the bumper"
+    assert wall.front_blocked(), "Forward sonar did not detect the near wall"
+
+    distance = wall.read_right_distance(controller.left, controller.right, lambda: False)
+    assert distance is not None and 345 <= distance <= 355, distance
+    assert abs(degrees(world.angle)) <= 2, "Right probe did not restore the starting heading"
+
+    wall.follow_wall(controller.left, controller.right)
+    assert 70 <= start_x - world.x <= 80, "Forward sonar did not trigger a backoff"
+    assert 80 <= degrees(world.angle) <= 95, "Robot did not turn away from the near wall"
+    assert all(motor.speed == 0 for motor in world.motors.values())
+
+    blind_zone = World(course, (2290, 450, 0), front_bumper, sonar_mount)
+    load_controller(blind_zone)
+    wall = sys.modules["follow_wall"]
+    assert wall.ultrasonic.distance() == SONAR_NO_ECHO_MM
+    assert wall.front_blocked(), "Front bumper did not detect contact inside the sonar's blind zone"
+    print("Forward sonar, right range probe, and bumper override passed.\n")
+
+
+def run_trial(course, seed, front_bumper, sonar_mount):
+    pose = course.starts[seed % len(course.starts)]
+    world = World(course, pose, front_bumper, sonar_mount)
+    controller = load_controller(world)
     sys.modules["wander"].randint = Random(seed).randint
     assert controller.cfg.SEARCH_TIMEOUT_MS == SEARCH_LIMIT_MS, "Expected a 180-second search limit"
 
@@ -308,16 +372,18 @@ def run_trial(course, seed, front_bumper, right_bumper):
 def run_suite(name, courses, trials_per_course):
     outcomes = Counter()
     print(name)
-    for bumper_name, front_bumper, right_bumper in BUMPER_LAYOUTS:
+    for sensor_layout, front_bumper, sonar_mount in SENSOR_LAYOUTS:
         for course in courses:
-            results = [run_trial(course, seed, front_bumper, right_bumper)
+            results = [run_trial(course, seed, front_bumper, sonar_mount)
                        for seed in range(trials_per_course)]
             outcomes.update(result.terminal for result in results)
             completed = [result.time / 1000 for result in results
                          if result.terminal == "Mission complete!"]
             timing = f" ({min(completed):.1f}–{max(completed):.1f} s total)" if completed else ""
-            print(f"  {bumper_name}, {course.name.lower()} — "
-                  f"{len(completed)}/{len(results)} complete{timing}")
+            sonar_reads = sum(result.sonar_reads for result in results)
+            print(f"  {sensor_layout}, {course.name.lower()} — "
+                  f"{len(completed)}/{len(results)} complete{timing}, "
+                  f"{sonar_reads} sonar reads")
             for seed, result in enumerate(results):
                 if result.terminal != "Mission complete!":
                     print(f"    seed {seed}, start {course.starts[seed % len(course.starts)]} — "
@@ -337,6 +403,7 @@ def main():
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     sys.dont_write_bytecode = True
+    check_sonar_wall_following()
     passed = run_suite("Original coverage suite", ORIGINAL_COURSES, 20)
     if args.holdout:
         run_suite("Additional coverage scenarios", HOLDOUT_COURSES, 4)

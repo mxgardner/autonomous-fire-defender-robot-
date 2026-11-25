@@ -4,7 +4,7 @@ from math import atan2, cos, degrees, pi, radians, sin, sqrt
 
 import config as cfg
 import drive
-from follow_wall import bumper_pressed
+from follow_wall import front_pressed
 
 PROBE_DISTANCE = 3500  # mm
 MIN_PROBE_TRAVEL = 5  # mm required to treat a stall as a wall measurement
@@ -57,13 +57,13 @@ class RoomSearch:
         start_heading = self.heading()
 
         def stop_at_contact():
-            return self.stop_when() or bumper_pressed()
+            return self.stop_when() or front_pressed()
 
         try:
             drive.straight(self.left, self.right, distance,
                            stop_when=stop_at_contact if guard else self.stop_when)
         except drive.MotionStalled:
-            # A blind chassis contact can stop a probe before either switch closes.
+            # A chassis corner can hit before the front bumper is pressed.
             progress = abs(self.wheel_distance() - start_distance)
             if distance < 0 or (require_start and progress < MIN_PROBE_TRAVEL):
                 raise

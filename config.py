@@ -7,9 +7,11 @@ RIGHT_PORT = Port.C
 LEFT_DIRECTION = Direction.CLOCKWISE
 RIGHT_DIRECTION = Direction.CLOCKWISE
 
-# Touch sensors for right-hand wall following.
+# Forward-facing wall sensors and clearances in millimeters.
 FRONT_BUMPER_PORT = Port.S1
-RIGHT_BUMPER_PORT = Port.S2
+ULTRASONIC_PORT = Port.S2
+FRONT_STOP_DISTANCE = 75
+WALL_FOLLOW_DISTANCE = 120
 
 # Time allowed to search for the target, in milliseconds.
 SEARCH_TIMEOUT_MS = 180000

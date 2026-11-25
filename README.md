@@ -138,12 +138,13 @@ Deliverables:
 | Right Wheel Motor | C | Robot movement |
 | Fan Motor | A | Fire extinguishing |
 | Front Touch Sensor | S1 | Front bumper for wall and corner detection |
-| Right Touch Sensor | S2 | Right-side bumper for tracking walls |
+| Forward Ultrasonic Sensor | S2 | Measures obstacles ahead and checks the right wall when the robot turns |
 | Color Sensor | S3 | Fire target detection |
 | Gyro Sensor | S4 | Heading and turning |
 
-Mount the bumpers so they press the touch sensors before the robot chassis
-hits a wall. The program keeps the wall on the robot's right.
+Mount the front bumper so it presses the touch sensor before the chassis
+hits a wall. Aim the ultrasonic sensor straight ahead at a height where
+it can see the course walls.
 
 ## Shared Configuration
 
@@ -158,6 +159,8 @@ robot's movement functions.
 | `STRAIGHT_KP` | Gyro correction gain for straight travel |
 | `WHEEL_DIAMETER` | Wheel diameter in millimeters |
 | `AXLE_TRACK` | Distance between wheels in millimeters |
+| `FRONT_STOP_DISTANCE` | Forward ultrasonic threshold for stopping in millimeters |
+| `WALL_FOLLOW_DISTANCE` | Desired ultrasonic range in millimeters when the robot turns right to measure the wall |
 | `SEARCH_TIMEOUT_MS` | Search duration, initially 180000 milliseconds |
 
 ## Shared Drive Functions
@@ -259,9 +262,12 @@ Run [main.py](main.py) on the EV3. The robot uses two parallel approaches
 to estimate the direction of a wall. It then measures clear travel along
 both room axes with its wheel encoders and gyro. It sweeps the middle and
 quarter lanes first to check for open passages, then scans between those
-lanes. Bumper contact stops a sweep. If the survey ends without a target,
-the robot resumes wall following and wandering. The controller checks for
-the target before and during motion.
+lanes. The front bumper supplies the wall contact measurements for the
+survey and stops a sweep. If the survey ends without a target, the robot
+resumes wall following and wandering. In those modes, the forward
+ultrasonic sensor detects nearby obstacles. To measure the wall on its
+right, the robot briefly turns toward it and then restores its heading.
+The controller checks for the target before and during motion.
 
 If drive feedback stops progressing, the robot holds the wheels, realigns,
 and tries backing away and turning. If it cannot retreat or turn within
@@ -329,16 +335,18 @@ also run cases with different starting poses, doorway and target positions.
 
 - [x] Wall detection, wall following, wandering, room search, and behavior coordination implemented
 - [x] Straight and square diagnostics, corner recovery, and wandering-to-wall-following handoff checked with simulated hardware
+- [x] Forward ultrasonic stopping, right-wall ranging, and bumper fallback checked in simulation
 - [x] Target priority, alarm, five-second fan command, and motor shutdown checked with simulated hardware
 - [x] Original coverage benchmark passed all 80 trials
 
-The additional layouts completed 14 of 16 trials. The two missed targets
+The additional layouts completed 15 of 16 trials. The remaining trial
 reached the search deadline.
 
 ### Before the first EV3 course run
 
-- [ ] Assemble the chassis and mount both bumpers, the floor-facing color sensor, and the fan
+- [ ] Assemble the chassis and mount the front bumper, forward ultrasonic sensor, floor-facing color sensor, and fan
 - [ ] Verify the [motor and sensor ports](#hardware-configuration) on the brick
+- [ ] Confirm the ultrasonic sensor detects a course wall straight ahead near the configured stopping distance
 - [ ] Lift the drive wheels and verify individual wheel movement, forward direction, and stopping
 - [ ] Check that the gyro reading is steady with the robot stationary and that the color sensor reads the course marker as red
 
