@@ -1,29 +1,35 @@
 #!/usr/bin/env pybricks-micropython
 
+# Paul's section
+
+from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import UltrasonicSensor, TouchSensor
 from pybricks.parameters import Port
 
 import drive
 
-# Sensor initialization
+brick = EV3Brick()
+
+# Sensors
 ultrasonic = UltrasonicSensor(Port.S2)
 touch_sensor = TouchSensor(Port.S1)
 
-# Wall following configuration (millimeters)
+# Wall configuration (mm)
 WALL_DETECTION_DISTANCE = 200
 TARGET_WALL_DISTANCE = 150
-WALL_TOLERANCE = 30
-MAX_WALL_DISTANCE = 300
+MAX_WALL_DISTANCE = 350
 
 STEP_DISTANCE = 50
 BACKOFF_DISTANCE = 75
 
-# Turning configuration (degrees)
+# Turning configuration
+TURN_ANGLE = 40
 CORRECTION_ANGLE = 15
-CORNER_ANGLE = 90
 
-# Wall following state
+# Wall tracking state
 following_wall = False
+clear_steps = 0
+MAX_CLEAR_STEPS = 3
 
 
 # ==========================================
@@ -31,14 +37,12 @@ following_wall = False
 # ==========================================
 
 def detect_wall():
-    """Return True when a wall is detected or being followed."""
-
-    distance = ultrasonic.distance()
+    """Detect nearby walls or continue wall tracking."""
 
     return (
         following_wall
         or touch_sensor.pressed()
-        or distance <= WALL_DETECTION_DISTANCE
+        or ultrasonic.distance() <= WALL_DETECTION_DISTANCE
     )
 
 
@@ -47,109 +51,94 @@ def detect_wall():
 # ==========================================
 
 def follow_wall(left, right):
-    """Perform one step of right-wall following."""
+    """Perform one step of wall following."""
 
     global following_wall
+    global clear_steps
 
-    front_distance = ultrasonic.distance()
+    following_wall = True
+
+    distance = ultrasonic.distance()
+
+    brick.screen.clear()
+    brick.screen.print("Following wall")
+    brick.screen.print("Distance:", distance)
+    brick.screen.print("Touch:", touch_sensor.pressed())
 
     # --------------------------------------
-    # Handle physical contact
+    # Physical contact with wall
     # --------------------------------------
 
     if touch_sensor.pressed():
 
-        print("Wall: Contact detected")
+        brick.screen.print("Backing away")
 
         drive.straight(left, right, -BACKOFF_DISTANCE)
-        drive.turn(left, right, CORNER_ANGLE)
 
-        following_wall = True
+        brick.screen.print("Turning left")
+
+        drive.turn(left, right, TURN_ANGLE)
+
+        clear_steps = 0
         return
 
     # --------------------------------------
-    # Handle walls ahead and inside corners
+    # Wall directly ahead
     # --------------------------------------
 
-    if front_distance <= WALL_DETECTION_DISTANCE:
+    if distance <= WALL_DETECTION_DISTANCE:
 
-        print("Wall: Turning left")
+        brick.screen.print("Wall ahead")
+        brick.screen.print("Turning left")
 
-        drive.turn(left, right, CORNER_ANGLE)
+        drive.turn(left, right, TURN_ANGLE)
 
-        following_wall = True
+        clear_steps = 0
         return
 
     # --------------------------------------
-    # Measure distance to the right wall
+    # Wall potentially lost
     # --------------------------------------
 
-    drive.turn(left, right, -90)
+    elif distance > MAX_WALL_DISTANCE:
 
-    right_distance = ultrasonic.distance()
+        clear_steps += 1
 
-    drive.turn(left, right, 90)
+        if clear_steps >= MAX_CLEAR_STEPS:
 
-    print("Wall distance:", right_distance)
+            brick.screen.print("Wall lost")
 
-    # --------------------------------------
-    # Wall lost or possible doorway
-    # --------------------------------------
+            following_wall = False
+            clear_steps = 0
+            return
 
-    if right_distance > MAX_WALL_DISTANCE:
-
-        print("Wall: Opening detected")
-
-        following_wall = False
-
-        drive.turn(left, right, -45)
-
-        return
-
-    # --------------------------------------
-    # Too close to the wall
-    # --------------------------------------
-
-    if right_distance < TARGET_WALL_DISTANCE - WALL_TOLERANCE:
-
-        print("Wall: Too close")
-
-        drive.turn(left, right, CORRECTION_ANGLE)
-
-    # --------------------------------------
-    # Too far from the wall
-    # --------------------------------------
-
-    elif right_distance > TARGET_WALL_DISTANCE + WALL_TOLERANCE:
-
-        print("Wall: Too far")
+        brick.screen.print("Searching right")
 
         drive.turn(left, right, -CORRECTION_ANGLE)
 
+        return
+
     # --------------------------------------
-    # Continue following the wall
+    # Follow the wall
     # --------------------------------------
 
-    following_wall = True
+    else:
 
-    if (
-        not touch_sensor.pressed()
-        and ultrasonic.distance() > WALL_DETECTION_DISTANCE
-    ):
+        clear_steps = 0
+
+        brick.screen.print("Moving forward")
+
         drive.straight(left, right, STEP_DISTANCE)
 
 
 # ==========================================
-# RESET WALL FOLLOWING
+# RESET WALL TRACKING
 # ==========================================
 
 def reset_tracking():
-    """Allow the robot to return to wandering."""
 
     global following_wall
+    global clear_steps
 
     following_wall = False
-def follow_wall(left, right):
-    """Placeholder for future wall-following behavior."""
-
-    pass
+    clear_steps = 0
